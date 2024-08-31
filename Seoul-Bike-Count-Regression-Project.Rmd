@@ -21,7 +21,7 @@ library(randomForest)
 **Goal: Predict hourly bike rental count in Seoul using environmental information**
 
 ## Loading and Renaming Columns
-Firstly, we started with loading in a dataset that contains the count of public bicycles rented per hour in the Seoul Bike Sharing System, with corresponding weather data and holiday information. This dataset was obtained from the UC Irvine Machine Learning Repository, which can be found in the following link: https://archive.ics.uci.edu/dataset/560/seoul+bike+sharing+demand. 
+Firstly, we start by loading in our dataset that contains the count of public bicycles rented per hour in the Seoul Bike Sharing System, with corresponding weather data and holiday information. This dataset was obtained from the UC Irvine Machine Learning Repository, which can be found in the following link: https://archive.ics.uci.edu/dataset/560/seoul+bike+sharing+demand. 
 
 ```{r load dataset}
 bike_df <- read.csv("seoulbikedata.csv", fileEncoding = "latin1")
@@ -30,7 +30,7 @@ head(bike_df, 3)
 ```
 We found that this dataset has `r dim[1]` observations and `r dim[2]` columns, with one of the columns being \texttt{Rentad.Bike.Count} which is our **response variable** that we ultimately want to predict in this project.
 
-Next, few columns were then renamed to improve readability and facilitate analysis later on.  
+Next, some of the columns will be renamed to facilitate analysis later on.  
 ```{r renaming columns}
 colnames(bike_df)[colnames(bike_df) == 'Temperature..C.'] <- 'Temperature'
 colnames(bike_df)[colnames(bike_df) == 'Humidity...'] <- 'Humidity'
@@ -44,14 +44,14 @@ head(bike_df,2)
 ```
 
 ## Data Cleaning
-First and foremost, we want to check whether our dataset has any missing values and deal with them accordingly by either deleting them or if the columns are significant, use tools such as k-Nearest Neighbours to estimate their values. 
+To get started, we want to check whether our dataset has any missing values and deal with them accordingly by either deleting them or if the columns are significant, use tools such as k-Nearest Neighbours to estimate their values. 
 ```{r check nulls}
 sum(is.na(bike_df))
 ```
 
-As seen above, we found that our dataset is clean and has no missing values. Now, we can move on to insepcting the features within the dataset. 
+In our case, we found that our dataset is clean and has no missing values. Now, we can move on to insepcting the features within the dataset. 
 
-By viewing our dataset above, we see that we have a column \texttt{Functioning.Day}, which indicates whether bikes were available for rent during that day or not. Since our goal is to predict the hourly count of rented bikes, we only need the data of operational days since the count is simply 0 on non-operational days. Therefore, we will remove observations made during non-functioning days, then drop the \texttt{Functioning.Day} column since we have no more use of it anymore. 
+Within our dataset, there is a column named \texttt{Functioning.Day}, which indicates whether bikes were available for rent during that day or not. Since our goal is to predict the hourly count of rented bikes, we only need the data of operational days since the count is simply 0 on non-operational days. Therefore, we will remove observations made during non-functioning days, then drop the \texttt{Functioning.Day} column. 
 
 ```{r filter dataset}
 bike_df2 <- bike_df %>%
@@ -61,26 +61,26 @@ bike_df3 <- bike_df2 %>%
   select(-Functioning.Day)
 ```
 
-We then looked at a summary of each feature within the dataset to further unerstand the features we are dealing with and determine the next step forward.
+We then looked at a summary of each feature within the dataset to further understand the features we are dealing with and determine the next step forward.
 
 ```{r data profiling}
 summary(bike_df3)
 ```
 
-We also check whether the numeric columns contain only numeric values to ensure that we are able to perform numerical operations on these during analysis later. 
+We also checked whether the numeric columns only contained numeric values to ensure that we are able to perform numerical operations on them during analysis later on. 
 
 ```{r data type check}
 indices <- c(2, 4:9)
 whether_numeric <- sapply(bike_df3[, indices], is.numeric)
 print(whether_numeric)
 ```
-As seen above, the aforementioned columns contain purely numeric values. Note that I excluded the \texttt{Hour} column from the above check since it will be treated as a factor when building the prediction model.
+As seen above, our numeric columns did in fact only contain purely numeric values. Note that the \texttt{Hour} column was excluded from the above check since it will be treated as a factor when building the prediction model.
 
 Now that the data is clean, we move on to some feature enginnering. 
 
 ## Feature Engineering
 
-Firstly, we note that the \texttt{Rainfall} and \texttt{Snowfall} columns record the actual heights of rain and snow respectively. However, since we do not know exact height measurements when making predictions of the future, we instead rely on available forecasts that indicate whether rain or snow is expected. Hence, we transformed the \texttt{Rainfall} and \texttt{Snowfall} columns into \texttt{Rained} and \texttt{Snowed} columns which take on binary indicators as their values: 1 representing the occurrence of rain or snow during that hour, while 0 indicates that there was no rain or snow respectively. Binary encoding helps to ensure best possible model performance since it is more compatible with algorithms and prevents ordinal assumptions.
+Firstly, we note that the columns \texttt{Rainfall} and \texttt{Snowfall}, record the actual heights of rain and snow respectively. However, since we do not know exact height measurements when making predictions of the future, we can only rely on available forecasts that indicate whether rain or snow is expected. Hence, we transformed the \texttt{Rainfall} and \texttt{Snowfall} columns into \texttt{Rained} and \texttt{Snowed} columns which take on binary indicators as their values: 1 representing the occurrence of rain or snow during that hour, while 0 indicates that there was no rain or snow respectively. Binary encoding helps to ensure best possible model performance since it is more compatible with algorithms and avoids ordinal assumptions.
 
 ```{r transforming rain and snow cols}
 bike_df3$Rained <- ifelse(bike_df3$Rainfall > 0, 1, 0)
@@ -88,7 +88,7 @@ bike_df3$Snowed <- ifelse(bike_df3$Snowfall > 0, 1, 0)
 bike_df4 <- bike_df3[ , !(names(bike_df3) %in% c("Rainfall", "Snowfall"))]
 ```
 
-Next, instead of using the date of each observation as a predictor, we simply need to know whether that day is a weekend or not. This is because we would expect bike rental patterns to differ between weekdays and weekends. To achieve this, I will create an \texttt{Is.Weekend} column. 
+Next, instead of using the date of each observation as a predictor, we simply need to know whether that day is a weekend or not. This is because we would expect bike rental patterns to differ between weekdays and weekends. To achieve this, an \texttt{Is.Weekend} column will be created. 
 
 ```{r transforming date col}
 bike_df4$Date <- as.Date(bike_df4$Date, format = "%d/%m/%Y")
@@ -98,7 +98,7 @@ bike_df4 <- bike_df4 %>%
   select(-Date)
 ```
 
-We now have an \texttt{Is.Weekend} column that has the value 1 if that observation was recorded on a weekend and 0 otherwise. Notice that we also removed the \texttt{Date} column since we do not need it anymore.
+Note that the \texttt{Date} column was also removed since it was not needed anymore.
 
 Next, based on literature within the field of meteorology, we identified three key indicators of human comfort based on environmental factors:
 \begin{enumerate}
@@ -107,7 +107,7 @@ Next, based on literature within the field of meteorology, we identified three k
   \item Humidex: describes how hot the weather feels to the average person, by combining the effect of heat and humidity. The humidex formula is as follows: $H = T_{air} + 0.5555\{6.11 \times \exp[5417.7530\left(\frac{1}{273.15} - \frac{1}{273.15 + T_{dew}}\right)] - 10\}$ where $H$ represent the humidex, $T_{air}$ the temperature in degrees Celcius, and $T_{dew}$ the dew point temperature in degrees Celcius. 
 \end{enumerate}
 
-Using the above formulas, we will proceed by calculating the above 3 indexes, then add them to the dataset as new variables: \texttt{HeatIdx}, \texttt{WindChill} and \texttt{HumiDex}. 
+Using the above formulas, the above 3 indexes were calculated and added to the dataset as new variables: \texttt{HeatIdx}, \texttt{WindChill} and \texttt{HumiDex}. 
 ```{r creating new features}
 bike_df4$HeatIdx <- 0.5 * ((bike_df4$Temperature * (9/5) + 32) + 61 + 
                    (((bike_df4$Temperature * (9/5) + 32)-68)*1.2) +
@@ -123,7 +123,7 @@ bike_df4$HumiDex <- bike_df4$Temperature +
 
 ## Outlier Detection and Removal
 Now that we have a set of informative features, we proceed by dealing with outliers and irregularities within our dataset. Firstly, we check the distribution of our reponse variable, \texttt{Rented.Bike.Count}. 
-```{r dist of response, fig.width=4, fig.height=3, fig.align='center'}
+```{r dist of response, fig.width=4, fig.height=3, fig.align='center', echo=FALSE}
 ggplot(bike_df4, aes(x = Rented.Bike.Count)) +
   geom_histogram(binwidth = 150, fill = "purple", color = "black") +
   labs(title = "Histogram of Rented Bike Count",
@@ -132,9 +132,9 @@ ggplot(bike_df4, aes(x = Rented.Bike.Count)) +
   theme_minimal()
 ```
 
-From the histogram above, we notice that the distribution of our response variable is right-skewed which is not ideal for machine learning algorithms such as linear regression that assumes normality. Therefore, we apply a square root transformation to the response variable to help make its distribution more symmetric.
+From the histogram, we notice that the distribution of our response variable is right-skewed which is not ideal for machine learning algorithms such as linear regression that assumes normality. Therefore, we apply a square root transformation to the response variable to help make its distribution more symmetric.
 
-```{r square root transformation, fig.width=4, fig.height=3, fig.align='center'}
+```{r square root transformation, fig.width=4, fig.height=3, fig.align='center', echo=FALSE}
 bike_df4$SqrRBC <- sqrt(bike_df4$Rented.Bike.Count)
 ggplot(bike_df4, aes(x = SqrRBC)) +
   geom_histogram(binwidth = 5, fill = "purple", color = "black") +
@@ -151,11 +151,19 @@ bike_df4 <- bike_df4 %>%
   select(-Rented.Bike.Count)
 ```
 
-Next, we want to examine the mean and standard deviation of the square root transformed rental bike count to identify and remove outliers. For a comprehensive approach, we will calculate means and standard deviations separately for each season and exclude observations that fall outside of three standard deviations of their respective seasonal mean.
+Next, we want to examine the mean and standard deviation of the square root transformed rental bike count to identify and remove outliers. For a comprehensive approach, we will calculate means and standard deviations separately for each season and exclude observations that fall outside of 3 standard deviations of their respective seasonal mean.
+
+```{r dim before outlier removal, include=FALSE}
+dim2 <- dim(bike_df4)
+```
+
 ```{r mean and sd calcs}
 mean_rented_by_season <- bike_df4 %>%
   group_by(Seasons) %>%
   summarize(mean = mean(SqrRBC), sd = sd(SqrRBC))
+```
+
+```{r table of mean and sd, echo=FALSE}
 kable(mean_rented_by_season)
 ```
 
@@ -168,11 +176,14 @@ bike_df6 <- bike_df5 %>%
     SqrRBC >= (mean - 3 * sd) &
     SqrRBC <= (mean + 3 * sd)
   )
-dim2 <- dim(bike_df6)
 bike_df6 <- bike_df6[, !(names(bike_df6) %in% c("mean", "sd"))]
 ```
 
-Consequently, we removed `r dim2[1]-dim[1]` outliers from the dataset.
+```{r dim after outlier removal, include=FALSE}
+dim3 <- dim(bike_df6)
+```
+
+Consequently, we removed `r dim2[1]-dim3[1]` outliers from the dataset.
 
 ## Categorical Variables
 Next, we examine the categorical variables within the dataset:
@@ -180,9 +191,9 @@ Next, we examine the categorical variables within the dataset:
 table(bike_df6$Seasons)
 table(bike_df6$Holiday)
 ```
-We see that each season has an approximately similar number of observations, whereas there is significantly more observations on days which are not holidays compared to those with holiday. This imbalance is a natural outcome where there is significantly more non-holidays than holidays in a year. 
+We notice that each season has an approximately similar number of observations. However, there is significantly more observations on days which are not holidays compared to those with holiday. This imbalance is a natural outcome since there is generally significantly more non-holidays than holidays in a year. 
 
-We will proceed by performing **one-hot encoding** on both these columns and the columns \texttt{Rained} and \texttt{Snowed}. 
+Next, we will perform **one-hot encoding** on both the columns \texttt{Seasons} and \texttt{Holiday}, and also the columns \texttt{Rained} and \texttt{Snowed}. 
 
 ```{r one-hot encdoing}
 dummy_var <- dummyVars(~ Seasons + Holiday, data = bike_df6)
@@ -191,7 +202,7 @@ encoded_df2 <- as.data.frame(encoded_df)
 bike_df7 <- cbind(bike_df6[ , !(names(bike_df6) %in% c("Seasons", "Holiday"))], encoded_df2)
 head(bike_df7,2)
 ```
-Next, we will convert the \texttt{Hour} column from an integer to a factor, and remove the \texttt{mean} and \texttt{sd} columns from the dataset.
+Finally, we will convert the \texttt{Hour} column from an integer to a factor, and remove the \texttt{mean} and \texttt{sd} columns from the dataset.
 
 ```{r factorize}
 bike_df7$Hour <- as.factor(bike_df7$Hour)
@@ -199,7 +210,7 @@ bike_df8 <- bike_df7[, !(names(bike_df7) %in% c("mean", "sd"))]
 ```
 
 ## Numerical Variables
-Next, we will examine our numerical variables and visualize each of them against \texttt{SqrRBC}:
+Next, we will examine our numerical variables by visualizing each of them against \texttt{SqrRBC}:
 ```{r analyze numerical distribution, echo=FALSE}
 visual_df <- bike_df8 %>% 
   select(SqrRBC, Hour, Solar.Radiation, Humidity, Wind.Speed, Visibility)
@@ -213,13 +224,12 @@ pairs(visual_df)
 pairs(visual_df2)
 ```
 
-From the plots above, we see that our square root transformed rented bike count has a small peak at 8-9am and is the highest at 6-7pm which coincides with times the people go to and leave work respectively. Next, \texttt{Temperature}, \texttt{Dew.Point.Temperature}, \texttt{HeatIndex}, \texttt{WindChill} and \texttt{HumiDex} all seem to have some positive correlation with \texttt{SqrRBC}.
+From the plots above, we see that our square root transformed rented bike count, \texttt{SqrRBC}, has a small peak at 8-9am and is the highest at 6-7pm which coincides with times the people go to and leave work respectively. Next, \texttt{Temperature}, \texttt{Dew.Point.Temperature}, \texttt{HeatIndex}, \texttt{WindChill} and \texttt{HumiDex} all seem to have some positive correlation with \texttt{SqrRBC}.
 
 However, the aforementioned five features excluding \texttt{SqrRBC} also seem to have a positive correlation between each other. Therefore, we need to perform correlation analysis as we want to avoid including highly correlated features within the dataset as this may skew our model. 
 
 \clearpage
 ## Final Variable Selection
-
 Correlation Analysis:
 
 ```{r heatmap, fig.width=4, fig.height=4, fig.align='center',echo=FALSE}
@@ -230,15 +240,11 @@ corrplot(cor_matrix, method = "color", type = "full",
          tl.col = "black", tl.srt = 45)
 ```
 
-From the heatmap, it can evidently be seen that the features \texttt{Temperature}, \texttt{Dew.Point.Temperature}, \texttt{HeatIndex}, \texttt{WindChill} and \texttt{HumiDex} are highly correlated with each other. This is to be expected since the latter 3 features were all computed using \texttt{Temperature}, with one of them also computed using \texttt{Dew.Point.Temperature}. Thus, those two variables should be removed. Although \texttt{HeatIndex}, \texttt{WindChill} and \texttt{HumiDex} are still highly correlated, they may improve model performance, which is why we did not remove these predictors. Instead, we will also remove \texttt{Wind.Speed} and \texttt{Humidity} since those features were also were to calculate \texttt{WindChill} and \texttt{HeatIdx} respectively. 
+From the heatmap, it is evident that the features \texttt{Temperature}, \texttt{Dew.Point.Temperature}, \texttt{HeatIndex}, \texttt{WindChill} and \texttt{HumiDex} are highly correlated with each other. This is to be expected since \texttt{HeatIndex}, \texttt{WindChill} and \texttt{HumiDex} are all computed using \texttt{Temperature}. In addition, \texttt{HumiDex} is also computed using \texttt{Dew.Point.Temperature}. Given this high correlation, we will remove \texttt{Temperature} and \texttt{Dew.Point.Temperature} from the dataset to reduce multicollinearity. Although \texttt{HeatIndex}, \texttt{WindChill} and \texttt{HumiDex} remain highly correlated, we will retain these features as they may improve model performance due to their real-world relevance.
 
-Next, to remove dependancy within the dataset, we also want to remove \texttt{SeasonsWinter}, \texttt{HolidayNo Holiday}, \texttt{RainedYes} and \texttt{SnowedYes} since one one-hot encoded column for each variable must be removed.
+Instead, we will remove \texttt{Wind.Speed} and \texttt{Humidity} since those features were used to calculate \texttt{WindChill} and \texttt{HeatIdx} respectively. 
 
-From the heatmap, it is evident that the features \texttt{Temperature}, \texttt{Dew.Point.Temperature}, \texttt{HeatIndex}, \texttt{WindChill} and \texttt{HumiDex} are highly correlated with each other. This is to be expected since \texttt{HeatIndex}, \texttt{WindChill} and \texttt{HumiDex} are all computed using \texttt{Temperature}. In addition, \texttt{HumiDex} is also computed using \texttt{Dew.Point.Temperature}. Given this high correlation, we will remove \texttt{Temperature} and \texttt{Dew.Point.Temperature} from the dataset to reduce multicollinearity. Although \texttt{HeatIndex}, \texttt{WindChill} and \texttt{HumiDex} remain highly correlated, we will retain these features since they may still contribute valuable information.\
-
-Next, we will also remove \texttt{Wind.Speed} and \texttt{Humidity} since \texttt{WindChill} and \texttt{HeatIndex} are dependant on them respectively.\
-
-Finally, we will remove one column from each one-hot encoded categorical variable: \texttt{SeasonsWinter} and \texttt{HolidayNo Holiday} to avoid multicollinearity. Our remaining features are as follows: \
+Finally, we will remove one column from each one-hot encoded categorical variable, namely \texttt{SeasonsWinter} and \texttt{HolidayNo Holiday}, to avoid multicollinearity. Our remaining features are as follows: 
 
 ```{r remove vars, echo=FALSE}
 bike_df9 <- bike_df8[, !(names(bike_df8) %in% c("Temperature", "Dew.Point.Temp", "Wind.Speed", "Humidity", "SeasonsWinter", "HolidayNo Holiday"))]
@@ -246,8 +252,10 @@ head(bike_df9, 2)
 ```
 Now, we are ready to train a model using the above dataset.
 
+\clearpage
+
 # Model Building
-Before we train our machine learning model, we first need a train set and a test set. In this project, we are using a 80-20 split where 80% of the observations from our dataset will be randomly sampled as our train set, whereas the remaining 20% will serve as the test set. 
+Before training our machine learning model, we first need a train set and a test set. In this project, a 80-20 split will be used, where 80% of the observations from our dataset will be randomly sampled as our train set, whereas the remaining 20% will serve as the test set. 
 ```{r traintest}
 set.seed(435) 
 train_size <- floor(0.8 * nrow(bike_df9))
@@ -258,33 +266,33 @@ test_data <- bike_df9[test, ]
 ```
 
 ## Multiple Linear Regression
-We chose to predict our response variable, \texttt{SqrRBC} using multiple linear regression (MLR) since it is one of the most simple and easily interpretable models which is invaluable when presenting findings to clients. To build the model, we will use all the features within the train set since we prepped the dataset to only include features that are independant and we believe are useful in predicting hourly count of rented bikes.
+We chose to predict our response variable, \texttt{SqrRBC}, using multiple linear regression (MLR) since it is one of the most simple and easily interpretable models, which is invaluable when presenting findings to clients. To build the model, we will use all the features within the train set since we prepped the dataset to only include features that are independent and we believe are useful in predicting hourly count of rented bikes.
 
 ```{r lm1}
 lm1 <- lm(SqrRBC ~ ., data=train_data)
 summary(lm1)
 ```
 
-The summary of our MLR model boasts a multiple R-squared of 0.769, indicating that 76.9% of the variability in \texttt{SqrRBC} is explained by the model, which suggests a strong fit. Additionally, most predictors are statistically significant in predicting \texttt{SqrRBC}, with p-values less than 0.05. However, \texttt{Snowed} is an exception, with a p-value of 0.397656 which is a lor larger than 0.05. This implies that the presence of snow might not significantly influence bike rental decisions of consumer. To determine whether we should remove \texttt{Snowed} from the model, we will perform an ANOVA test.
+The summary of our MLR model boasts a multiple R-squared of 0.769, indicating that 76.9% of the variability in \texttt{SqrRBC} is explained by the model, suggesting a strong fit. Additionally, most predictors are statistically significant in predicting \texttt{SqrRBC}, with p-values that are samller than 0.05. However, the predictor \texttt{Snowed} is an exception, with a p-value of 0.397656 which is a lot larger than 0.05. This implies that the presence of snow might not significantly influence bike rental decisions of consumer. To determine whether we should remove \texttt{Snowed} from the model, an ANOVA test will be performed.
 
 ```{r}
 lm2 <- lm(SqrRBC ~ Hour + Visibility + Solar.Radiation + Rained + Is.Weekend + 
             HeatIdx + WindChill + HumiDex + SeasonsAutumn + SeasonsSpring + 
             SeasonsSummer + HolidayHoliday, data=train_data)
-summary(lm2)
 anova(lm1, lm2)
+summary(lm2)
 ```
 
 From the anova test, the p-value of 0.3977 indicates that the difference in the fit of the two models is not statistically significant. This means that the predictor \texttt{Snowed} does not provide meaningful predictive power to the model, and can be safely removed from the model without compromising the model's performance. This is further supported by identical adjusted R-squared values of 0.7678 for both the first and second model, indicating that the model performs just as well without \texttt{Snowed}. 
 
-Now that we have obtained our model, let us evaluate its predictive power by calculating its mean squared error (MSE). Note that we use MSE here instead of root mean squared error (RMSE) since MSE will have the same units as \texttt{Rented.Bike.Count} which facilitates interpretation.  
+Now that we have obtained our model, its predictive power will be evaluated by calculating its mean squared error (MSE). Note that MSE is used here instead of root mean squared error (RMSE) since MSE will have the same units as \texttt{Rented.Bike.Count} which facilitates interpretation.  
 
 ```{r lm2}
 predictions <- predict(lm2, newdata = test_data)
 mse <- mean((test_data$SqrRBC - predictions)^2)
 ```
 
-We found that our model has an MSE of `r round(mse,4)`, which seems reasonable given that rented bike count in our dataset ranges from 2 to 3,556, with a median of 542. However, to further improve our model, we will examine its residual plots to check for behaviour that could indicate areas where the model may not be performing well.
+We found that our model has an MSE of `r round(mse,4)`, which seems reasonable given that rented bike count in our dataset ranges from 2 to 3556, with a median of 542. However, to further improve our model, we will examine its residual plots to check for behaviors that could indicate areas where the model may not be performing well.
 
 ```{r residual plots 1, fig.width=8, fig.height=4, echo=FALSE}
 # Generate the plots for the linear model
@@ -293,16 +301,20 @@ plot(lm2, which = c(2,5))
 par(mfrow = c(1,1))
 ```
 
-Firstly, most of the points generally fall on the Q-Q line, indicating that the points are generally normally distributed. However, although there is only a slight deviation on the right tail, there is a noticeable deviation on the left tail, which suggests the presence of extreme negative residuals which may be adversely impacting the performance of the model. Similarly, although the residuals vs. leverage plot shows no high-leverage points, it does reveal several outliers with extreme negative residuals. These observations highlight the presence of outliers that could be adversely influencing the model. To further investigate these outliers, we will examine the residuals vs fitted plot to gain additional insights.
+On the Q-Q plot, most of the points generally fall on the Q-Q line, indicating that the points are generally normally distributed. However, although there is only a slight deviation on the right tail, there is a noticeable deviation on the left tail due to the presence of extreme negative residuals, which may be adversely impacting model performance. 
+
+Similarly, although the residuals vs. leverage plot shows no high-leverage points, it does reveal several outliers with extreme negative residuals. 
+
+These observations highlight the presence of outliers that could be adversely influencing the model. To further investigate these outliers, we will examine the residuals vs fitted plot to gain additional insights.
 
 ```{r residual plots 2, fig.width=5, fig.height=3.5, fig.align='center', echo=FALSE}
 plot(lm2, which = 1)
 ```
 
-We immediately notice a distinct quadratic shape in the plot above, along with many outliers with extreme negative residuals. This quadratic pattern implies the presence of relationships between the predictors that are not being fully captured by the linear model. To address this, we decided to add natural splines to the linear model to help to capture non-linear relationships and improve model performance, which transform our linear regression into a spline regression.
+We immediately notice a distinct quadratic shape in the plot above, along with many outliers with extreme negative residuals. This quadratic pattern implies the presence of relationships between the predictors that are not being fully captured by the linear model. To address this, we decided to add natural splines to the linear model to help to capture non-linear relationships and improve model performance, transforming our linear regression into a **spline regression**.
 
 ## Spline regression
-Refering back to the pair plots of each of the numerical predictors against \texttt{SqrRBC}, we notice that \texttt{Solar.Radiation} and \texttt{Visibility} exhibit non-linear relationships with \texttt{SqrRBC}. Therefore, we will incorporate splines for these predictors. We will also add splines on \texttt{HeatIdx}, \texttt{WindChill} and \texttt{HumiDex} because, while they show some linear relationship with \texttt{SqrRBC}, it is not particularly strong.
+Refering back to the pair plots of each numerical predictor against \texttt{SqrRBC}, we notice that \texttt{Solar.Radiation} and \texttt{Visibility} exhibit non-linear relationships with \texttt{SqrRBC}. Therefore, we will incorporate splines for these predictors. Splines will also be added on \texttt{HeatIdx}, \texttt{WindChill} and \texttt{HumiDex} because while they show some linear relationship with \texttt{SqrRBC}, it is not particularly strong.
 
 ```{r spline model}
 spline_model <- lm(SqrRBC ~ Hour + ns(Visibility, df=2) + ns(Solar.Radiation, df = 5)
@@ -318,7 +330,7 @@ Note that the degrees of freedom for each predictor was chosen through trial and
 summary(spline_model)
 ```
 
-From the summary of our natural spline model, we can observe that with the addition of natural splines, our multiple R-squared value increased from 0.769 to 0.815, which is a `r round(((0.815-0.769)/0.769)*100,2)`\% increase.  
+From the summary of our natural spline model, we observe that with the addition of natural splines, our multiple R-squared value increased from 0.769 to 0.815, which is a `r round(((0.815-0.769)/0.769)*100,2)`\% increase.  
 
 ```{r spline mse}
 predictions <- predict(spline_model, newdata = test_data)
@@ -331,10 +343,10 @@ We also achieved a lower MSE of `r round(mse2,4)`, which is a decrease of `r rou
 plot(spline_model, which=1)
 ```
 
-Given these residual patterns, we decided that it is more appropriate to train a more flexible model that is capable to capturing these non-linear relationships more reliably. This calls for Random Forests, which excel at capturing non-linear relationships and interactions between predictors without requiring explicit modeling. This is due to the fact that random forests are ensemble methods that build multiple decision trees and aggregate their predictions, allowing the model to learn various patterns across predictors.
+Given these residual patterns, we decided that it is more appropriate to train a more flexible model that is capable to capturing these non-linear relationships more reliably. This calls for **random forests**, which excel at capturing non-linear relationships and interactions between predictors without requiring explicit modeling. This is due to the fact that random forests are ensemble methods that build multiple decision trees and aggregate their predictions, allowing the model to learn various patterns across predictors.
 
 ## Random Forests
-Firstly, we will be re-introducing some of the predictors that were previously removed due to dependencies. Since random forests are robust to multicollinearity, they are able to perform well with dependent variables which allows them to learn a wide range of patterns. 
+Firstly, we will be re-introducing some of the predictors that were previously removed due to dependencies. Since random forests are robust to multicollinearity, they are able to perform well with dependent variables, allowing them to learn a wide range of patterns. 
 
 The predictors used for the random forest model will be as follows: \texttt{Hour}, \texttt{Temperature}, \texttt{Humidity}, \texttt{Wind.Speed}, \texttt{Visibility}, \texttt{Dew.Point.Temp}, \texttt{Solar.Radiation}, \texttt{Rained}, \texttt{Snowed}, \texttt{Is.Weekend}, \texttt{HeatIdx}, \texttt{WindChill}, \texttt{HumiDex}, \texttt{SeasonsAutumn}, \texttt{SeasonsSpring}, \texttt{SeasonsSummer} and \texttt{HolidayHoliday}.
 
@@ -342,10 +354,8 @@ The predictors used for the random forest model will be as follows: \texttt{Hour
 set.seed(435)  
 
 bike_df10 <- bike_df8[, c(-18,-20)]
-
 train_data2 <- bike_df10[train, ]
 test_data2 <- bike_df10[test, ]
-
 
 rf_model <- randomForest(SqrRBC ~ .,
                          data = train_data2,
@@ -356,26 +366,26 @@ Now that our model it trained, we will test its predictive power by calculating 
 
 ```{r test random forest model}
 predictions <- predict(rf_model, newdata = test_data2)
-
 actuals <- test_data2$SqrRBC
 mse3 <- mean((predictions - actuals)^2)
 ```
 
 We found that the MSE of the random forest model is `r round(mse3, 4)` which is lower than the MSE of the spline regression model which was `r round(mse2, 4)`. This shows that the MSE has decreased by `r round((mse2-mse3)/mse2 * 100 ,2)` \%.
 
-However, it is important to recognize that our Random Forest model currently includes 17 predictors, which may be too many to ensure ease of use for our clients. To streamline the model while maintaining its predictive power, we aim to remove some predictors. To do so, we will evaluate the importance of each predictor in the model as follows:
+However, it is important to recognize that our random forest model currently includes 17 predictors, which may be too many to ensure ease of use for our clients. To streamline the model while maintaining its predictive power, we aim to remove some predictors. To do so, the importance of each predictor in the model will be evaluated.
 
-```{r predictor importance ranking}
+```{r predictor importance ranking, echo=FALSE}
 kable(importance(rf_model))
 ```
 
-From the table above, we can surmise that the predictors \texttt{Snowed} and \texttt{HolidayHoliday} have low importance in the decision-making process of the random forest model. While \texttt{SeasonsSpring} and \texttt{SeasonsSummer} also show lower importance, we decided to keep them because \texttt{SeasonsAutumn} has a high importance score, and all three only require a single input from the client (type of season). Therefore, we will proceed by removing \texttt{Snowed} and \texttt{HolidayHoliday} from our dataset and retrain the random forest model.
+From the table above, we can surmise that the predictors \texttt{Snowed} and \texttt{HolidayHoliday} have low importance in the decision-making process of the random forest model. While \texttt{SeasonsSpring} and \texttt{SeasonsSummer} also show lower importance, we decided to keep them because \texttt{SeasonsAutumn} has a high importance score, and all three only require a single input from the client (type of season). 
+
+Thus, \texttt{Snowed} and \texttt{HolidayHoliday} will be removed from our dataset and the random forest model will be retrained.
 
 ```{r train second random forest model}
 set.seed(435)  
 
 bike_df11 <- bike_df10[, c(-9,-18)]
-
 train_data2 <- bike_df11[train, ]
 test_data2 <- bike_df11[test, ]
 
@@ -390,9 +400,9 @@ actuals <- test_data2$SqrRBC
 mse4 <- mean((predictions - actuals)^2)
 ```
 
-After dropping the two predictors, we notice a slight increase in the MSE which increased from `r round(mse3, 4)` to `r round(mse4, 4)`. Despite this minor loss in predictive accuracy, the trade-off is beneficial as it simplifies the model and enhances its usability and interpretability for clients.
+After dropping the two predictors, we notice a slight increase in the MSE, where it increased from `r round(mse3, 4)` to `r round(mse4, 4)`. Despite this minor loss in predictive accuracy, the trade-off is beneficial as it simplifies the model and enhances its usability and interpretability for clients.
 
-Next, we can further improve our Random Forest model by tuning the mtry value instead of using the default value by using tuneRF as shown below: 
+Next, we can further improve our random forest model by tuning the mtry value instead of using the default value by using tuneRF as shown below: 
 ```{r tune mtry, fig.width=5, fig.height=3.5, fig.align='center'}
 set.seed(435)
 
@@ -403,11 +413,10 @@ tuneMt <- tuneRF(train_data2[,-which(names(train_data2) == "SqrRBC")],
                         ntreeTry = 501, 
                         trace = TRUE,
                         improve = 0.05)
-
 opt_mtry <- tuneMt[which.min(tuneMt[, "OOBError"]), "mtry"]
 ```
 
-As seen from the graph above, the optimal mtry value obtained by using tuneRF is 20 as it results in the lowest Out-of-Bag (OOB) error. Next, we will retrain our Random Forest Model using this optimal mtry value and calculate the MSE of the new model. 
+As seen from the graph above, the optimal mtry value obtained by using tuneRF is 20, as it results in the lowest Out-of-Bag (OOB) error. Next, our random forest model will be retrained using this optimal mtry value and its MSE will be calculated. 
 
 ```{r fit third model}
 set.seed(435)
@@ -417,7 +426,6 @@ rf_model3 <- randomForest(SqrRBC ~ .,
                                 mtry = opt_mtry)
 ```
 
-
 ```{r test third random forest model}
 predictions <- predict(rf_model3, newdata = test_data2)
 actuals <- test_data2$SqrRBC
@@ -426,7 +434,7 @@ mse5 <- mean((predictions - actuals)^2)
 
 We observe that our MSE has decreased again, from `r round(mse4, 4)` to `r round(mse5, 4)`, which is a decrease of `r round((mse4-mse5)/mse4 * 100 , 4)`\%, showing that using the optimal mtry value did indeed improve the predictive power of the random forest model. 
 
-Thus, we have found that between linear regression, spline regression and random forests, the random forest model is the most accurate as it has the lowest MSE of `r round(mse5, 4)` compared to `r round(mse, 4)` of linear regression and `r round(mse2, 4)` of spline regression. Finally, let us perform k-fold cross validation to ensure that our random forest model is robust.
+Thus, we have found that between linear regression, spline regression and random forests, the random forest model is the most accurate in prediciting \texttt{SqrRBC} as it has the lowest MSE of `r round(mse5, 4)` compared to `r round(mse, 4)` of linear regression and `r round(mse2, 4)` of spline regression. Finally, let us perform k-fold cross validation to ensure that our random forest model is robust.
 
 ```{r 10-fold cross validation for third random forest model}
 set.seed(435)
@@ -453,11 +461,11 @@ plot(cv_errors, type = "b", pch = 19, col = "purple",
      main = "10-fold Cross-Validation Mean Squared Error")
 ```
 
-Since the mean of the MSE is `r round(mean_cv_error, 2)` which is similar to the prior attained mean squared error of `r round(mse5, 2)`, we can conclude that our random forest model is robust.
+Since the mean of the MSE is `r round(mean_cv_error, 2)` which is similar to the prior attained MSE of `r round(mse5, 2)`, we can conclude that our random forest model is indeed robust.
 
 With this, we have successfully trained a random forest model to predict hourly bike rental count in Seoul using environmental information. The predictors used in the model are as follows: \texttt{Hour}, \texttt{Temperature}, \texttt{Humidity}, \texttt{Wind Speed}, \texttt{Visibility}, \texttt{Dew Point Temperature}, \texttt{Solar Radiation}, \texttt{Heat Index}, \texttt{Wind Chill}, \texttt{Humidex}, \texttt{Seasons} and \texttt{Rained}.
 
-Lastly, we write a function that allows us to predict the hourly rented bike count by providing the function all the relevant parameters. Then, we testing the function to ensure our algorithm is working.
+Lastly, we write a function that allows us to predict the hourly rented bike count by providing the function all the relevant parameters. Then, the function tested with a new data point to ensure our algorithm is working.
 
 ```{r prediction function}
 predict_rbc <- function(hr, temp, hum, ws, visibility, dpt, sr, rain, weektype, 
