@@ -26,7 +26,7 @@ Firstly, we started with loading in a dataset that contains the count of public 
 ```{r load dataset}
 bike_df <- read.csv("seoulbikedata.csv", fileEncoding = "latin1")
 dim <- dim(bike_df)
-head(bike_df)
+head(bike_df, 3)
 ```
 We found that this dataset has `r dim[1]` observations and `r dim[2]` columns, with one of the columns being \texttt{Rentad.Bike.Count} which is our **response variable** that we ultimately want to predict in this project.
 
@@ -51,7 +51,7 @@ sum(is.na(bike_df))
 
 As seen above, we found that our dataset is clean and has no missing values. Now, we can move on to insepcting the features within the dataset. 
 
-By viewing our dataset printed on the second page, we see that we have a column \texttt{Functioning.Day} which indicates whether bikes were available for rent during that day or not. Since our goal is to predict the hourly count of rented bikes, we only need the data of operational days since the count is simply 0 on non-operational days. Therefore, we will remove observations made during non-functioning days, then drop the \texttt{Functioning.Day} column since we have no more use of it anymore. 
+By viewing our dataset above, we see that we have a column \texttt{Functioning.Day}, which indicates whether bikes were available for rent during that day or not. Since our goal is to predict the hourly count of rented bikes, we only need the data of operational days since the count is simply 0 on non-operational days. Therefore, we will remove observations made during non-functioning days, then drop the \texttt{Functioning.Day} column since we have no more use of it anymore. 
 
 ```{r filter dataset}
 bike_df2 <- bike_df %>%
@@ -92,7 +92,8 @@ Next, instead of using the date of each observation as a predictor, we simply ne
 
 ```{r transforming date col}
 bike_df4$Date <- as.Date(bike_df4$Date, format = "%d/%m/%Y")
-bike_df4$Is.Weekend <- as.integer(weekdays(bike_df4$Date) %in% c("Saturday", "Sunday"))
+bike_df4$Is.Weekend <- as.integer(weekdays(bike_df4$Date) %in% 
+                                    c("Saturday", "Sunday"))
 bike_df4 <- bike_df4 %>% 
   select(-Date)
 ```
@@ -108,19 +109,21 @@ Next, based on literature within the field of meteorology, we identified three k
 
 Using the above formulas, we will proceed by calculating the above 3 indexes, then add them to the dataset as new variables: \texttt{HeatIdx}, \texttt{WindChill} and \texttt{HumiDex}. 
 ```{r creating new features}
-bike_df4$HeatIdx <- 0.5 * ((bike_df4$Temperature * (9/5) + 32) + 61 + (((bike_df4$Temperature * (9/5)
-                   + 32)-68)*1.2) + (bike_df4$Humidity*0.094))
+bike_df4$HeatIdx <- 0.5 * ((bike_df4$Temperature * (9/5) + 32) + 61 + 
+                   (((bike_df4$Temperature * (9/5) + 32)-68)*1.2) +
+                   (bike_df4$Humidity*0.094))
 bike_df4$WindChill <- 35.74 + 0.6215*(bike_df4$Temperature * (9/5) + 32) - 
                       35.75*(bike_df4$Wind.Speed*2.23694)^(0.16) + 
-                      0.4275*(bike_df4$Temperature * (9/5) + 32)*(bike_df4$Wind.Speed*2.23694)^{0.16}
-bike_df4$HumiDex <- bike_df4$Temperature + 0.5555*(6.11 * exp(5417.7530*(1/273.15 - 
+0.4275*(bike_df4$Temperature * (9/5) + 32)*(bike_df4$Wind.Speed*2.23694)^{0.16}
+bike_df4$HumiDex <- bike_df4$Temperature + 
+                    0.5555*(6.11 * exp(5417.7530*(1/273.15 - 
                     1/(273.15 + bike_df4$Dew.Point.Temp)))-10)
 #summary(bike_df4)
 ```
 
 ## Outlier Detection and Removal
 Now that we have a set of informative features, we proceed by dealing with outliers and irregularities within our dataset. Firstly, we check the distribution of our reponse variable, \texttt{Rented.Bike.Count}. 
-```{r dist of response, fig.width=6, fig.height=4}
+```{r dist of response, fig.width=4, fig.height=3, fig.align='center'}
 ggplot(bike_df4, aes(x = Rented.Bike.Count)) +
   geom_histogram(binwidth = 150, fill = "purple", color = "black") +
   labs(title = "Histogram of Rented Bike Count",
@@ -131,11 +134,11 @@ ggplot(bike_df4, aes(x = Rented.Bike.Count)) +
 
 From the histogram above, we notice that the distribution of our response variable is right-skewed which is not ideal for machine learning algorithms such as linear regression that assumes normality. Therefore, we apply a square root transformation to the response variable to help make its distribution more symmetric.
 
-```{r square root transformation, fig.width=6, fig.height=4}
+```{r square root transformation, fig.width=4, fig.height=3, fig.align='center'}
 bike_df4$SqrRBC <- sqrt(bike_df4$Rented.Bike.Count)
 ggplot(bike_df4, aes(x = SqrRBC)) +
   geom_histogram(binwidth = 5, fill = "purple", color = "black") +
-  labs(title = "Histogram of Square Root Transformed Rented Bike Count",
+  labs(title = "Histogram of SqrRBC",
        x = "Square Root Transformed Rented Bike Count",
        y = "Frequency") +
   theme_minimal()
@@ -204,6 +207,9 @@ visual_df2 <- bike_df8 %>%
   select(SqrRBC, Temperature, Dew.Point.Temp, HeatIdx, WindChill, HumiDex)
 
 pairs(visual_df)
+```
+
+```{r second pair plot, echo=FALSE}
 pairs(visual_df2)
 ```
 
@@ -211,16 +217,20 @@ From the plots above, we see that our square root transformed rented bike count 
 
 However, the aforementioned five features excluding \texttt{SqrRBC} also seem to have a positive correlation between each other. Therefore, we need to perform correlation analysis as we want to avoid including highly correlated features within the dataset as this may skew our model. 
 
+\clearpage
 ## Final Variable Selection
+
 Correlation Analysis:
-```{r heatmap, fig.width=6, fig.height=6, echo=FALSE}
+
+```{r heatmap, fig.width=4, fig.height=4, fig.align='center',echo=FALSE}
 cor_matrix <- cor(bike_df8[, c(2:7,11:14)])
 
 corrplot(cor_matrix, method = "color", type = "full", 
          col = colorRampPalette(c("purple", "white", "gold"))(50), 
          tl.col = "black", tl.srt = 45)
 ```
-From the heatmap, it can evidently be seen that the features \texttt{Temperature}, \texttt{Dew.Point.Temperature}, \texttt{HeatIndex}, \texttt{WindChill} and \texttt{HumiDex} are highly correlated with each other. This is to be expected since the latter 3 features were all computed using \texttt{Temperature}, with one of them also computed using \texttt{Dew.Point.Temperature}. Thus, those two variables should be removed. Although \texttt{HeatIndex}, \texttt{WindChill} and \texttt{HumiDex} are still highly correlated, they may improve model performance, which is why we did not remove these predictors. Instead, we will also remove \texttt{Wind.Speed} and \texttt{Humidity} since those features were also were to calculate \texttt{WindChill} and \texttt{HeatIdx} respectively. \
+
+From the heatmap, it can evidently be seen that the features \texttt{Temperature}, \texttt{Dew.Point.Temperature}, \texttt{HeatIndex}, \texttt{WindChill} and \texttt{HumiDex} are highly correlated with each other. This is to be expected since the latter 3 features were all computed using \texttt{Temperature}, with one of them also computed using \texttt{Dew.Point.Temperature}. Thus, those two variables should be removed. Although \texttt{HeatIndex}, \texttt{WindChill} and \texttt{HumiDex} are still highly correlated, they may improve model performance, which is why we did not remove these predictors. Instead, we will also remove \texttt{Wind.Speed} and \texttt{Humidity} since those features were also were to calculate \texttt{WindChill} and \texttt{HeatIdx} respectively. 
 
 Next, to remove dependancy within the dataset, we also want to remove \texttt{SeasonsWinter}, \texttt{HolidayNo Holiday}, \texttt{RainedYes} and \texttt{SnowedYes} since one one-hot encoded column for each variable must be removed.
 
@@ -258,9 +268,9 @@ summary(lm1)
 The summary of our MLR model boasts a multiple R-squared of 0.769, indicating that 76.9% of the variability in \texttt{SqrRBC} is explained by the model, which suggests a strong fit. Additionally, most predictors are statistically significant in predicting \texttt{SqrRBC}, with p-values less than 0.05. However, \texttt{Snowed} is an exception, with a p-value of 0.397656 which is a lor larger than 0.05. This implies that the presence of snow might not significantly influence bike rental decisions of consumer. To determine whether we should remove \texttt{Snowed} from the model, we will perform an ANOVA test.
 
 ```{r}
-lm2 <- lm(SqrRBC ~ Hour + Visibility + Solar.Radiation + Rained + Is.Weekend + HeatIdx + 
-            WindChill + HumiDex + SeasonsAutumn + SeasonsSpring + SeasonsSummer + 
-            HolidayHoliday, data=train_data)
+lm2 <- lm(SqrRBC ~ Hour + Visibility + Solar.Radiation + Rained + Is.Weekend + 
+            HeatIdx + WindChill + HumiDex + SeasonsAutumn + SeasonsSpring + 
+            SeasonsSummer + HolidayHoliday, data=train_data)
 summary(lm2)
 anova(lm1, lm2)
 ```
@@ -285,7 +295,7 @@ par(mfrow = c(1,1))
 
 Firstly, most of the points generally fall on the Q-Q line, indicating that the points are generally normally distributed. However, although there is only a slight deviation on the right tail, there is a noticeable deviation on the left tail, which suggests the presence of extreme negative residuals which may be adversely impacting the performance of the model. Similarly, although the residuals vs. leverage plot shows no high-leverage points, it does reveal several outliers with extreme negative residuals. These observations highlight the presence of outliers that could be adversely influencing the model. To further investigate these outliers, we will examine the residuals vs fitted plot to gain additional insights.
 
-```{r residual plots 2, fig.width=6, fig.height=4}
+```{r residual plots 2, fig.width=5, fig.height=3.5, fig.align='center', echo=FALSE}
 plot(lm2, which = 1)
 ```
 
@@ -317,7 +327,7 @@ mse2 <- mean((test_data$SqrRBC - predictions)^2)
 
 We also achieved a lower MSE of `r round(mse2,4)`, which is a decrease of `r round(mse-mse2, 4)` from our previous MSE. Despite that, the residuals vs fitted plot of the spline model shown below indicates that there are still some relationships between predictors that remain uncaptured by the natural spline model. 
 
-```{r spline residual, fig.width=6, fig.height=4, echo=FALSE}
+```{r spline residual, fig.width=5, fig.height=3.5, fig.align='center', echo=FALSE}
 plot(spline_model, which=1)
 ```
 
@@ -383,7 +393,7 @@ mse4 <- mean((predictions - actuals)^2)
 After dropping the two predictors, we notice a slight increase in the MSE which increased from `r round(mse3, 4)` to `r round(mse4, 4)`. Despite this minor loss in predictive accuracy, the trade-off is beneficial as it simplifies the model and enhances its usability and interpretability for clients.
 
 Next, we can further improve our Random Forest model by tuning the mtry value instead of using the default value by using tuneRF as shown below: 
-```{r tune mtry, fig.width=6, fig.height=4}
+```{r tune mtry, fig.width=5, fig.height=3.5, fig.align='center'}
 set.seed(435)
 
 tuneMt <- tuneRF(train_data2[,-which(names(train_data2) == "SqrRBC")],
@@ -435,12 +445,12 @@ for (i in seq_along(folds)) {
 }
 ```
 
-```{r 10-fold cross validation results, fig.width=6, fig.height=4}
+```{r 10-fold cross validation results, fig.width=5, fig.height=3.5, fig.align='center'}
 mean_cv_error <- mean(cv_errors)
 
-# Plot the cross-validation errors
 plot(cv_errors, type = "b", pch = 19, col = "purple",
-     xlab = "Fold", ylab = "Error", main = "10-fold Cross-Validation Mean Squared Error")
+     xlab = "Fold", ylab = "Error", 
+     main = "10-fold Cross-Validation Mean Squared Error")
 ```
 
 Since the mean of the MSE is `r round(mean_cv_error, 2)` which is similar to the prior attained mean squared error of `r round(mse5, 2)`, we can conclude that our random forest model is robust.
@@ -450,7 +460,8 @@ With this, we have successfully trained a random forest model to predict hourly 
 Lastly, we write a function that allows us to predict the hourly rented bike count by providing the function all the relevant parameters. Then, we testing the function to ensure our algorithm is working.
 
 ```{r prediction function}
-predict_rbc <- function(hr, temp, hum, ws, visibility, dpt, sr, rain, weektype, season) {
+predict_rbc <- function(hr, temp, hum, ws, visibility, dpt, sr, rain, weektype, 
+                        season) {
   
   # Create a new data point for prediction
   data_point <- data.frame(
@@ -467,7 +478,8 @@ predict_rbc <- function(hr, temp, hum, ws, visibility, dpt, sr, rain, weektype, 
                     (hum*0.094)),
     WindChill = 35.74 + 0.6215*(temp * (9/5) + 32) - 35.75*(ws*2.23694)^(0.16) + 
                         0.4275*(temp * (9/5) + 32)*(ws*2.23694)^{0.16},
-    HumiDex = temp + 0.5555*(6.11 * exp(5417.7530*(1/273.15 - 1/(273.15 + dpt)))-10),
+    HumiDex = temp + 
+              0.5555*(6.11 * exp(5417.7530*(1/273.15 - 1/(273.15 + dpt)))-10),
     SeasonsAutumn = as.integer(season == "Autumn"),
     SeasonsSpring = as.integer(season == "Spring"),
     SeasonsSummer = as.integer(season == "Summer")
